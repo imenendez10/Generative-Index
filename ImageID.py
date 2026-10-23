@@ -1,57 +1,66 @@
-# os nos permite trabajar con rutas y carpetas.
 import os
-# Importamos la configuracion y las funciones que da el profesor.
 import cfg
 
 
 class ImageID:
-    # Al crear el objeto, preparamos las variables que vamos a utilizar.
     def __init__(self):
-        # Creamos un diccionario vacio para relacionar claves con sus datos.
-        self.ids_por_archivo = {}
-        # Creamos un diccionario vacio para relacionar claves con sus datos.
-        self.archivos_por_id = {}
+        # dos diccionaris per poder buscar en les dues direccions
+        self.ids_per_fitxer = {}
+        self.fitxers_per_id = {}
 
-    # Usamos una ruta relativa para identificar el mismo archivo siempre igual.
-    def _ruta_relativa(self, file):
-        # Dentro del programa usamos rutas relativas a la coleccion.
-        if os.path.isabs(file):
-            return cfg.get_canonical_pathfile(file)
-        return os.path.normpath(file).replace(os.sep, '/')
+    def _ruta_relativa(self, fitxer):
+        # sempre treballem amb rutes relatives a l'arrel de la col·lecció,
+        # vingui el path com vingui (absolut, relatiu a l'arrel o a la carpeta de treball)
+        fitxer = os.path.normpath(fitxer)
+        if os.path.isabs(fitxer):
+            return cfg.get_canonical_pathfile(fitxer)
+        if os.path.exists(os.path.join(cfg.get_root(), fitxer)):
+            return fitxer.replace(os.sep, '/')
+        if os.path.exists(fitxer):
+            return cfg.get_canonical_pathfile(os.path.abspath(fitxer))
+        return fitxer.replace(os.sep, '/')
 
-    # Calculamos un UUID y comprobamos que nadie lo este utilizando.
     def generate_uuid(self, file):
-        archivo = self._ruta_relativa(file)
-        identificador = str(cfg.get_uuid(archivo))
-        # Solo entramos en este bloque cuando se cumple la condicion.
-        if identificador in self.archivos_por_id:
-            print('UUID ya utilizado. Se ignora el archivo:', archivo)
-            # Salimos del metodo sin continuar con los pasos siguientes.
+        fitxer = self._ruta_relativa(file)
+        identificador = str(cfg.get_uuid(fitxer))
+        if identificador in self.fitxers_per_id:
+            print('UUID ja utilitzat. S\'ignora el fitxer:', fitxer)
             return None
-        self.ids_por_archivo[archivo] = identificador
-        self.archivos_por_id[identificador] = archivo
+        self.ids_per_fitxer[fitxer] = identificador
+        self.fitxers_per_id[identificador] = fitxer
         return identificador
 
-    # Buscamos el identificador que ya hemos guardado para este archivo.
+    def _variants(self, fitxer):
+        # el mateix fitxer pot arribar escrit de diverses maneres
+        # ('x.png', '../x.png', 'generated_images/x.png'...), així que
+        # provem les formes més habituals abans de dir que no hi és
+        base = self._ruta_relativa(fitxer)
+        formes = [base]
+        prefix = os.path.basename(cfg.get_root()) + '/'
+        for forma in list(formes):
+            curta = forma
+            while curta.startswith('../'):
+                curta = curta[3:]
+            if curta.startswith(prefix):
+                curta = curta[len(prefix):]
+            formes.append(curta)
+            formes.append('../' + curta)
+        return formes
+
     def get_uuid(self, file):
-        archivo = self._ruta_relativa(file)
-        return self.ids_por_archivo.get(archivo)
+        for forma in self._variants(file):
+            if forma in self.ids_per_fitxer:
+                return self.ids_per_fitxer[forma]
+        return None
 
-    # Quitamos el identificador para que se pueda volver a utilizar.
     def remove_uuid(self, uuid):
-        # Convertimos el UUID a texto para usar siempre el mismo tipo de clave.
         identificador = str(uuid)
-        # Solo entramos en este bloque cuando se cumple la condicion.
-        if identificador in self.archivos_por_id:
-            archivo = self.archivos_por_id.pop(identificador)
-            del self.ids_por_archivo[archivo]
+        if identificador in self.fitxers_per_id:
+            fitxer = self.fitxers_per_id.pop(identificador)
+            del self.ids_per_fitxer[fitxer]
 
-    # len(objeto) devuelve cuantos elementos hay guardados, no su espacio en memoria.
     def __len__(self):
-        # len cuenta los elementos; str convierte ese numero a texto si hace falta.
-        return len(self.archivos_por_id)
+        return len(self.fitxers_per_id)
 
-    # Preparamos un texto sencillo para poder imprimir el objeto.
     def __str__(self):
-        # len cuenta los elementos; str convierte ese numero a texto si hace falta.
-        return 'ImageID: ' + str(len(self)) + ' identificadores activos'
+        return 'ImageID: ' + str(len(self)) + ' identificadors actius'

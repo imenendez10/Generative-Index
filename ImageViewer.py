@@ -1,38 +1,29 @@
-# os nos permite trabajar con rutas y carpetas.
 import os
-# Importamos la configuracion y las funciones que da el profesor.
 import cfg
-# Pillow nos permite abrir las imagenes PNG.
 from PIL import Image
 
 
 class ImageViewer:
-    # Al crear el objeto, preparamos las variables que vamos a utilizar.
     def __init__(self, image_data):
         self.image_data = image_data
 
-    # Mostramos los datos guardados sin volver a leer los metadatos del disco.
     def print_image(self, uuid):
-        archivo = self.image_data.get_filename(uuid)
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if archivo is None:
-            # Salimos del metodo sin continuar con los pasos siguientes.
+        # imprimeix les dades que ja tenim en memòria, sense tornar a llegir el disc
+        fitxer = self.image_data.get_filename(uuid)
+        if fitxer is None:
             return
-        dimensiones = self.image_data.get_dimensions(uuid)
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if dimensiones is None:
-            dimensiones = (None, None)
-        ancho, alto = dimensiones
+        dimensions = self.image_data.get_dimensions(uuid)
+        if dimensions is None:
+            dimensions = (None, None)
+        amplada, alcada = dimensions
         prompt = self.image_data.get_prompt(uuid)
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
         if prompt is None:
             prompt = 'None'
-        # Solo entramos en este bloque cuando se cumple la condicion.
         if len(prompt) > 100:
             prompt = prompt[:100] + '...'
-        print('Archivo:', archivo)
+        print('Archivo:', fitxer)
         print('UUID:', uuid)
-        print('Dimensions:', str(ancho) + 'x' + str(alto))
+        print('Dimensions:', str(amplada) + 'x' + str(alcada))
         print('Prompt:', prompt)
         print('Model:', self.image_data.get_model(uuid))
         print('Seed:', self.image_data.get_seed(uuid))
@@ -42,37 +33,33 @@ class ImageViewer:
         print('Generated:', self.image_data.get_generated(uuid))
         print('Created Date:', self.image_data.get_created_date(uuid))
 
-    # Abrimos el archivo con Pillow para mostrar la imagen.
     def show_file(self, file):
-        # Unimos la carpeta de la coleccion con la ruta del archivo.
-        ruta = os.path.join(cfg.get_root(), file)
-        # Intentamos hacer la operacion y controlamos los posibles errores.
+        arrel = cfg.get_root()
+        curta = os.path.normpath(file).replace(os.sep, '/')
+        while curta.startswith('../'):
+            curta = curta[3:]
+        ruta = os.path.join(arrel, file)
+        for candidat in (ruta, file, os.path.join(arrel, curta)):
+            if os.path.isfile(candidat):
+                ruta = candidat
+                break
         try:
-            # Al salir de este bloque, el archivo o la imagen se cierra automaticamente.
-            with Image.open(ruta) as imagen:
-                imagen.show()
+            with Image.open(ruta) as imatge:
+                imatge.show()
         except (OSError, ValueError) as error:
-            print('No se puede mostrar la imagen:', error)
+            print('No es pot mostrar la imatge:', error)
 
-    # Segun el modo, mostramos los metadatos, la imagen o ambas cosas.
     def show_image(self, uuid, mode=None):
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
+        # mode 0: només text, mode 1: text i imatge, mode 2: només imatge
         if mode is None:
             mode = cfg.DISPLAY_MODE
-        archivo = self.image_data.get_filename(uuid)
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if archivo is None:
-            # Salimos del metodo sin continuar con los pasos siguientes.
+        fitxer = self.image_data.get_filename(uuid)
+        if fitxer is None:
             return
-        # Comprobamos que accion corresponde a este modo de visualizacion.
         if mode == 0 or mode == 1:
             self.print_image(uuid)
-        # Comprobamos que accion corresponde a este modo de visualizacion.
         if mode == 1 or mode == 2:
-            self.show_file(archivo)
-        # No usamos input porque bloquearia el corrector.
+            self.show_file(fitxer)
 
-    # Preparamos un texto sencillo para poder imprimir el objeto.
     def __str__(self):
-        # len cuenta los elementos; str convierte ese numero a texto si hace falta.
-        return 'ImageViewer: ' + str(len(self.image_data)) + ' imagenes disponibles'
+        return 'ImageViewer: ' + str(len(self.image_data)) + ' imatges disponibles'

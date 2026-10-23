@@ -1,155 +1,105 @@
-# os nos permite trabajar con rutas y carpetas.
 import os
-# Importamos la configuracion y las funciones que da el profesor.
 import cfg
-# Pillow nos permite abrir las imagenes PNG.
 from PIL import Image
 
 
 class ImageData:
-    # Al crear el objeto, preparamos las variables que vamos a utilizar.
     def __init__(self):
-        # Cada UUID tiene su ruta, sus metadatos y sus dimensiones.
-        self.imagenes = {}
-        self.campos = ['Prompt', 'Model', 'Seed', 'CFG_Scale', 'Steps',
-                       'Sampler', 'Generated', 'Created_Date']
+        # per cada UUID guardem el fitxer, les dimensions i els metadades
+        self.imatges = {}
+        self.camps = ['Prompt', 'Model', 'Seed', 'CFG_Scale', 'Steps',
+                      'Sampler', 'Generated', 'Created_Date']
 
-    # Guardamos una imagen nueva, pero todavia no leemos sus metadatos.
     def add_image(self, uuid, file):
-        # Solo entramos en este bloque cuando se cumple la condicion.
         if not uuid or not file:
-            # Salimos del metodo sin continuar con los pasos siguientes.
             return
-        # Unimos la carpeta de la coleccion con la ruta del archivo.
-        ruta = os.path.join(cfg.get_root(), file)
-        # Si el archivo no existe, no lo anadimos.
-        if not os.path.isfile(ruta):
-            # Salimos del metodo sin continuar con los pasos siguientes.
-            return
-        # Convertimos el UUID a texto para usar siempre el mismo tipo de clave.
+        # només creem l'entrada: els metadades es llegeixen després amb load_metadata
         identificador = str(uuid)
-        # Solo entramos en este bloque cuando se cumple la condicion.
-        if identificador in self.imagenes:
-            # Salimos del metodo sin continuar con los pasos siguientes.
+        if identificador in self.imatges:
             return
-        datos = {'filename': file, 'dimensions': None}
-        # Recorremos cada elemento para comprobarlo uno a uno.
-        for campo in self.campos:
-            datos[campo] = None
-        self.imagenes[identificador] = datos
+        dades = {'filename': file, 'dimensions': None}
+        for camp in self.camps:
+            dades[camp] = None
+        self.imatges[identificador] = dades
 
-    # Borramos la entrada de la imagen y todos sus datos.
+    def _ruta_completa(self, fitxer):
+        # busca el fitxer a l'arrel, tal com ens l'han donat, o sense els '../' del davant
+        arrel = cfg.get_root()
+        curta = os.path.normpath(fitxer).replace(os.sep, '/')
+        while curta.startswith('../'):
+            curta = curta[3:]
+        candidats = [os.path.join(arrel, fitxer), fitxer, os.path.join(arrel, curta)]
+        for candidat in candidats:
+            if os.path.isfile(candidat):
+                return candidat
+        return candidats[0]
+
     def remove_image(self, uuid):
-        # Quitamos el elemento indicado; en una cola, pop quita el ultimo.
-        self.imagenes.pop(str(uuid), None)
+        self.imatges.pop(str(uuid), None)
 
-    # Leemos el PNG y actualizamos sus metadatos en memoria.
     def load_metadata(self, uuid):
-        # Convertimos el UUID a texto para usar siempre el mismo tipo de clave.
         identificador = str(uuid)
-        # Comprobamos que el elemento no este guardado o repetido.
-        if identificador not in self.imagenes:
-            # Salimos del metodo sin continuar con los pasos siguientes.
+        if identificador not in self.imatges:
             return
-        datos = self.imagenes[identificador]
-        # Unimos la carpeta de la coleccion con la ruta del archivo.
-        ruta = os.path.join(cfg.get_root(), datos['filename'])
-        # Leemos los metadatos con la funcion oficial de cfg.
-        metadatos = cfg.read_png_metadata(ruta)
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if metadatos is None:
-            # Creamos un diccionario vacio para relacionar claves con sus datos.
-            metadatos = {}
-        # Se actualizan todos los campos, incluso si alguno ha desaparecido.
-        for campo in self.campos:
-            # get consulta el diccionario sin dar error si la clave no existe.
-            valor = metadatos.get(campo)
-            # Comprobamos si falta el dato antes de intentar utilizarlo.
+        dades = self.imatges[identificador]
+        ruta = self._ruta_completa(dades['filename'])
+        metadades = cfg.read_png_metadata(ruta)
+        if metadades is None:
+            metadades = {}
+        # s'actualitzen tots els camps, encara que algun hagi desaparegut
+        for camp in self.camps:
+            valor = metadades.get(camp)
             if valor is None:
-                datos[campo] = 'None'
+                dades[camp] = 'None'
             else:
-                datos[campo] = str(valor)
-        # Intentamos hacer la operacion y controlamos los posibles errores.
+                dades[camp] = str(valor)
         try:
-            # Al salir de este bloque, el archivo o la imagen se cierra automaticamente.
-            with Image.open(ruta) as imagen:
-                datos['dimensions'] = imagen.size
+            with Image.open(ruta) as imatge:
+                dades['dimensions'] = imatge.size
         except (OSError, ValueError):
-            datos['dimensions'] = (None, None)
+            dades['dimensions'] = (None, None)
 
-    # Este metodo auxiliar consulta un campo sin repetir el mismo codigo.
-    def _get_campo(self, uuid, campo):
-        # Convertimos el UUID a texto para usar siempre el mismo tipo de clave.
-        datos = self.imagenes.get(str(uuid))
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if datos is None:
-            # Salimos del metodo sin continuar con los pasos siguientes.
+    def _get_camp(self, uuid, camp):
+        dades = self.imatges.get(str(uuid))
+        if dades is None:
             return None
-        return datos[campo]
+        return dades[camp]
 
-    # Devolvemos la ruta que guardamos al anadir la imagen.
     def get_filename(self, uuid):
-        # Convertimos el UUID a texto para usar siempre el mismo tipo de clave.
-        datos = self.imagenes.get(str(uuid))
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if datos is None:
-            # Salimos del metodo sin continuar con los pasos siguientes.
-            return None
-        return datos['filename']
+        return self._get_camp(uuid, 'filename')
 
-    # Consultamos el ancho y el alto que tenemos guardados.
     def get_dimensions(self, uuid):
-        # Convertimos el UUID a texto para usar siempre el mismo tipo de clave.
-        datos = self.imagenes.get(str(uuid))
-        # Comprobamos si falta el dato antes de intentar utilizarlo.
-        if datos is None:
-            # Salimos del metodo sin continuar con los pasos siguientes.
-            return None
-        return datos['dimensions']
+        return self._get_camp(uuid, 'dimensions')
 
-    # Obtenemos una lista de los identificadores para poder recorrer las imagenes.
     def get_uuids(self):
-        # La busqueda necesita recorrer los identificadores guardados.
-        return list(self.imagenes)
+        return list(self.imatges)
 
-    # len(objeto) devuelve cuantos elementos hay guardados, no su espacio en memoria.
     def __len__(self):
-        # len cuenta los elementos; str convierte ese numero a texto si hace falta.
-        return len(self.imagenes)
+        return len(self.imatges)
 
-    # Preparamos un texto sencillo para poder imprimir el objeto.
     def __str__(self):
-        # len cuenta los elementos; str convierte ese numero a texto si hace falta.
-        return 'ImageData: ' + str(len(self)) + ' imagenes'
+        return 'ImageData: ' + str(len(self)) + ' imatges'
 
-    # Consultamos el campo prompt de la imagen.
     def get_prompt(self, uuid):
-        return self._get_campo(uuid, 'Prompt')
+        return self._get_camp(uuid, 'Prompt')
 
-    # Consultamos el campo modelo de la imagen.
     def get_model(self, uuid):
-        return self._get_campo(uuid, 'Model')
+        return self._get_camp(uuid, 'Model')
 
-    # Consultamos el campo semilla de la imagen.
     def get_seed(self, uuid):
-        return self._get_campo(uuid, 'Seed')
+        return self._get_camp(uuid, 'Seed')
 
-    # Consultamos el campo CFG Scale de la imagen.
     def get_cfg_scale(self, uuid):
-        return self._get_campo(uuid, 'CFG_Scale')
+        return self._get_camp(uuid, 'CFG_Scale')
 
-    # Consultamos el campo numero de pasos de la imagen.
     def get_steps(self, uuid):
-        return self._get_campo(uuid, 'Steps')
+        return self._get_camp(uuid, 'Steps')
 
-    # Consultamos el campo sampler de la imagen.
     def get_sampler(self, uuid):
-        return self._get_campo(uuid, 'Sampler')
+        return self._get_camp(uuid, 'Sampler')
 
-    # Consultamos el campo indicador de generacion de la imagen.
     def get_generated(self, uuid):
-        return self._get_campo(uuid, 'Generated')
+        return self._get_camp(uuid, 'Generated')
 
-    # Consultamos el campo fecha de creacion de la imagen.
     def get_created_date(self, uuid):
-        return self._get_campo(uuid, 'Created_Date')
+        return self._get_camp(uuid, 'Created_Date')
